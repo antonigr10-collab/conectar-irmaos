@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="pt-br" translate="no"> 
+<html lang="pt-br" translate="no">
 
 
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conectar Irmãos - Gestão de Comunidade</title>
+    <title>Conectando Discípulos</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -300,6 +300,53 @@
             font-weight: 600;
             letter-spacing: 0.5px;
         }
+
+        /* Estilo do Toast (Alerta Moderno) */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .toast {
+            background: #333;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: deslizar 0.3s ease-out;
+        }
+
+        .toast.sucesso {
+            background-color: #28a745;
+        }
+
+        .toast.erro {
+            background-color: #dc3545;
+        }
+
+        @keyframes deslizar {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.saindo {
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.5s ease;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -308,7 +355,7 @@
 
     <div class="main-wrapper">
         <header>
-            <h1>Conectar Irmãos</h1>
+            <h1>Conectando Discípulos</h1>
         </header>
 
         <div class="dashboard-grid">
@@ -412,7 +459,7 @@
                 <div class="field-group" style="flex:1;">
                     <label class="field-label">Estado</label>
                     <select id="buscarEstado">
-                         <option value="AC">Acre</option>
+                        <option value="AC">Acre</option>
                         <option value="AL">Alagoas</option>
                         <option value="AP">Amapá</option>
                         <option value="AM">Amazonas</option>
@@ -483,134 +530,167 @@
 
     <script>
         // 1. Configuração de conexão (COLE SUAS CHAVES AQUI)
-const SUPABASE_URL = 'https://onrvnaqzudykimjsvnqy.supabase.co'; 
-const SUPABASE_KEY = 'sb_publishable_Ql8bhWzKV6dDkOLMpPTTlQ_jfKznQq7';
-const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const SUPABASE_URL = 'https://onrvnaqzudykimjsvnqy.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_Ql8bhWzKV6dDkOLMpPTTlQ_jfKznQq7';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let pessoas = [];
+        let pessoas = [];
 
-// --- INICIALIZAÇÃO ---
-// Esta função busca os dados no Supabase assim que a página abre
-async function carregarDadosDoBanco() {
-    const { data, error } = await _supabase
-        .from('irmaos')
-        .select('*')
-        .order('nome', { ascending: true });
+        // --- INICIALIZAÇÃO ---
+        // Esta função busca os dados no Supabase assim que a página abre
+        async function carregarDadosDoBanco() {
+            const { data, error } = await _supabase
+                .from('irmaos')
+                .select('*')
+                .order('nome', { ascending: true });
 
-    if (error) {
-        console.error("Erro ao buscar dados:", error);
-    } else {
-        pessoas = data;
-        atualizarDashboard();
-        buscar(); // Mostra a lista inicial
-    }
-}
+            if (error) {
+                console.error("Erro ao buscar dados:", error);
+            } else {
+                pessoas = data;
+                atualizarDashboard();
+                buscar(); // Mostra a lista inicial
+            }
+        }
 
-// Chamar ao carregar a página
-carregarDadosDoBanco();
+        // Chamar ao carregar a página
+        carregarDadosDoBanco();
 
-// --- MÁSCARAS E INTERFACE ---
-document.getElementById("telefone").addEventListener("input", function (e) {
-    let x = e.target.value.replace(/\D/g, "");
-    if (x.length <= 2) e.target.value = x;
-    else if (x.length <= 6) e.target.value = `(${x.slice(0, 2)}) ${x.slice(2)}`;
-    else e.target.value = `(${x.slice(0, 2)}) ${x.slice(2, 7)}-${x.slice(7, 11)}`;
-});
+        // --- MÁSCARAS E INTERFACE ---
+        document.getElementById("telefone").addEventListener("input", function (e) {
+            let x = e.target.value.replace(/\D/g, "");
+            if (x.length <= 2) e.target.value = x;
+            else if (x.length <= 6) e.target.value = `(${x.slice(0, 2)}) ${x.slice(2)}`;
+            else e.target.value = `(${x.slice(0, 2)}) ${x.slice(2, 7)}-${x.slice(7, 11)}`;
+        });
 
-function carregarCidades(idEstado, idCidade) {
-    let sigla = document.getElementById(idEstado).value;
-    let select = document.getElementById(idCidade);
-    select.innerHTML = '<option value="">...</option>';
-    if (sigla) {
-        fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${sigla}/municipios`)
-            .then(r => r.json())
-            .then(dados => {
-                select.innerHTML = '<option value="">Selecione...</option>';
-                dados.forEach(m => select.innerHTML += `<option value="${m.nome}">${m.nome}</option>`);
+        function carregarCidades(idEstado, idCidade) {
+            let sigla = document.getElementById(idEstado).value;
+            let select = document.getElementById(idCidade);
+            select.innerHTML = '<option value="">...</option>';
+            if (sigla) {
+                fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${sigla}/municipios`)
+                    .then(r => r.json())
+                    .then(dados => {
+                        select.innerHTML = '<option value="">Selecione...</option>';
+                        dados.forEach(m => select.innerHTML += `<option value="${m.nome}">${m.nome}</option>`);
+                    });
+            }
+        }
+
+        document.getElementById("cadEstado").addEventListener("change", () => carregarCidades("cadEstado", "cidade"));
+        document.getElementById("buscarEstado").addEventListener("change", () => carregarCidades("buscarEstado", "buscarCidade"));
+
+        // --- FUNÇÕES DO BANCO DE DADOS (C.R.U.D) ---
+
+        async function cadastrar() {
+            let nome = document.getElementById("nome").value.trim();
+            let tel = document.getElementById("telefone").value.trim();
+            let est = document.getElementById("cadEstado").value;
+            let cid = document.getElementById("cidade").value;
+            let eLider = document.getElementById("lider").checked;
+
+            if (!nome || !tel || !est || !cid) return mostrarToast("Preencha tudo!");
+
+            // Salva no Supabase
+            const { error } = await _supabase
+                .from('irmaos')
+                .insert([{ nome, telefone: tel, estado: est, cidade: cid, lider: eLider }]);
+
+            if (error) {
+                mostrarToast("Erro ao salvar: " + error.message);
+            } else {
+                mostrarToast("Cadastrado com sucesso!");
+                
+                location.reload();
+            }
+        }
+
+        async function excluir(idNoBanco) {
+            if (confirm("Remover permanentemente do banco de dados?")) {
+                const { error } = await _supabase
+                    .from('irmaos')
+                    .delete()
+                    .eq('id', idNoBanco);
+
+                if (error) mostrarToast("Erro ao excluir");
+                else location.reload();
+            }
+        }
+
+        function buscar() {
+            let nomeP = document.getElementById("buscarNome").value.toLowerCase();
+            let estP = document.getElementById("buscarEstado").value;
+            let cidP = document.getElementById("buscarCidade").value;
+            let soLid = document.getElementById("buscarApenasLideres").checked;
+
+            let resDiv = document.getElementById("resultado");
+            resDiv.innerHTML = "";
+
+            let filtrados = pessoas.filter(p => {
+                return (estP === "" || p.estado === estP) &&
+                    (cidP === "" || p.cidade === cidP) &&
+                    (p.nome.toLowerCase().includes(nomeP)) &&
+                    (!soLid || p.lider);
             });
-    }
-}
 
-document.getElementById("cadEstado").addEventListener("change", () => carregarCidades("cadEstado", "cidade"));
-document.getElementById("buscarEstado").addEventListener("change", () => carregarCidades("buscarEstado", "buscarCidade"));
+            if (filtrados.length === 0) {
+                resDiv.innerHTML = '<p style="text-align:center;color:var(--secondary);">Nenhum resultado.</p>';
+                return;
+            }
 
-// --- FUNÇÕES DO BANCO DE DADOS (C.R.U.D) ---
+            filtrados.forEach(p => {
+                // Essa linha prepara o link do WhatsApp automaticamente
+                const msgWhats = encodeURIComponent(`Olá ${p.nome}, sou um discípulo de Jesus!`);
+                const linkWhats = `https://wa.me/55${p.telefone.replace(/\D/g, '')}?text=${msgWhats}`;
 
-async function cadastrar() {
-    let nome = document.getElementById("nome").value.trim();
-    let tel = document.getElementById("telefone").value.trim();
-    let est = document.getElementById("cadEstado").value;
-    let cid = document.getElementById("cidade").value;
-    let eLider = document.getElementById("lider").checked;
-
-    if (!nome || !tel || !est || !cid) return alert("Preencha tudo!");
-
-    // Salva no Supabase
-    const { error } = await _supabase
-        .from('irmaos')
-        .insert([{ nome, telefone: tel, estado: est, cidade: cid, lider: eLider }]);
-
-    if (error) {
-        alert("Erro ao salvar: " + error.message);
-    } else {
-        alert("Cadastrado com sucesso!");
-        location.reload(); 
-    }
-}
-
-async function excluir(idNoBanco) {
-    if (confirm("Remover permanentemente do banco de dados?")) {
-        const { error } = await _supabase
-            .from('irmaos')
-            .delete()
-            .eq('id', idNoBanco);
-
-        if (error) alert("Erro ao excluir");
-        else location.reload();
-    }
-}
-
-function buscar() {
-    let nomeP = document.getElementById("buscarNome").value.toLowerCase();
-    let estP = document.getElementById("buscarEstado").value;
-    let cidP = document.getElementById("buscarCidade").value;
-    let soLid = document.getElementById("buscarApenasLideres").checked;
-
-    let resDiv = document.getElementById("resultado");
-    resDiv.innerHTML = "";
-
-    let filtrados = pessoas.filter(p => {
-        return (estP === "" || p.estado === estP) &&
-               (cidP === "" || p.cidade === cidP) &&
-               (p.nome.toLowerCase().includes(nomeP)) &&
-               (!soLid || p.lider);
-    });
-
-    if (filtrados.length === 0) {
-        resDiv.innerHTML = '<p style="text-align:center;color:var(--secondary);">Nenhum resultado.</p>';
-        return;
-    }
-
-    filtrados.forEach(p => {
-        resDiv.innerHTML += `
+                resDiv.innerHTML += `
         <div class="person-item">
             <div>
                 <div class="person-name">${p.nome} ${p.lider ? '<span class="badge-lider">Líder</span>' : ''}</div>
-                <div class="person-contact">${p.telefone}</div>
+                
+                <a href="${linkWhats}" target="_blank" style="text-decoration:none; color:#25d366; font-weight:bold; display:block; margin:5px 0;">
+                   📱 ${p.telefone}
+                </a>
+                
                 <div class="person-location">📍 ${p.cidade} - ${p.estado}</div>
             </div>
             <button style="background:none; border:none; color:var(--danger); cursor:pointer;" onclick="excluir(${p.id})">
-                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:20px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </button>
         </div>`;
-    });
-}
+            });
+        }
 
-function atualizarDashboard() {
-    document.getElementById("totalIrmaos").innerText = pessoas.length;
-    let lideres = pessoas.filter(p => p.lider).length;
-    document.getElementById("totalLideres").innerText = lideres;
-}
+        function atualizarDashboard() {
+            document.getElementById("totalIrmaos").innerText = pessoas.length;
+            let lideres = pessoas.filter(p => p.lider).length;
+            document.getElementById("totalLideres").innerText = lideres;
+        }
+
+
+        function mostrarToast(mensagem, tipo = 'sucesso') {
+            // Cria o container se não existir
+            let container = document.querySelector('.toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+
+            // Cria o toast
+            const toast = document.createElement('div');
+            toast.className = `toast ${tipo}`;
+            toast.innerHTML = `<span>${tipo === 'sucesso' ? '✅' : '❌'}</span> ${mensagem}`;
+
+            container.appendChild(toast);
+
+            // Remove automaticamente depois de 3 segundos
+            setTimeout(() => {
+                toast.classList.add('saindo');
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
 
     </script>
 
