@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Conectar Irmãos</title>
+</head>
+
+<body>
+
+    <h1>Cadastro</h1>
+
+    <input type="text" id="nome" placeholder="Nome"><br><br>
+    <input type="text" id="telefone" placeholder="Telefone (informe o DDD e o número)"><br><br>
+
+    <select id="cadEstado">
+        <option value="">Selecione o Estado</option>
+        <option value="AC">Acre</option>
+        <option value="AL">Alagoas</option>
+        <option value="AP">Amapá</option>
+        <option value="AM">Amazonas</option>
+        <option value="BA">Bahia</option>
+        <option value="CE">Ceará</option>
+        <option value="DF">Distrito Federal</option>
+        <option value="ES">Espírito Santo</option>
+        <option value="GO">Goiás</option>
+        <option value="MA">Maranhão</option>
+        <option value="MT">Mato Grosso</option>
+        <option value="MS">Mato Grosso do Sul</option>
+        <option value="MG">Minas Gerais</option>
+        <option value="PA">Pará</option>
+        <option value="PB">Paraíba</option>
+        <option value="PR">Paraná</option>
+        <option value="PE">Pernambuco</option>
+        <option value="PI">Piauí</option>
+        <option value="RJ">Rio de Janeiro</option>
+        <option value="RN">Rio Grande do Norte</option>
+        <option value="RS">Rio Grande do Sul</option>
+        <option value="RO">Rondônia</option>
+        <option value="RR">Roraima</option>
+        <option value="SC">Santa Catarina</option>
+        <option value="SP">São Paulo</option>
+        <option value="SE">Sergipe</option>
+        <option value="TO">Tocantins</option>
+    </select><br><br>
+
+    <select id="cidade">
+        <option value="">Selecione o Estado primeiro</option>
+    </select><br><br>
+
+    <label>
+        <input type="checkbox" id="lider"> Sou líder
+    </label><br><br>
+
+    <button onclick="cadastrar()">Cadastrar</button>
+
+    <hr>
+    <input type="text" id="buscarNome" placeholder="Digitar nome do irmão..."><br><br>
+
+    <label>
+        <input type="checkbox" id="buscarApenasLideres"> Ver apenas líderes
+    </label><br><br>
+
+    <h1>Buscar irmãos</h1>
+
+    <select id="buscarEstado">
+        <option value="">Selecione o Estado</option>
+        <option value="AC">Acre</option>
+        <option value="AL">Alagoas</option>
+        <option value="AP">Amapá</option>
+        <option value="AM">Amazonas</option>
+        <option value="BA">Bahia</option>
+        <option value="CE">Ceará</option>
+        <option value="DF">Distrito Federal</option>
+        <option value="ES">Espírito Santo</option>
+        <option value="GO">Goiás</option>
+        <option value="MA">Maranhão</option>
+        <option value="MT">Mato Grosso</option>
+        <option value="MS">Mato Grosso do Sul</option>
+        <option value="MG">Minas Gerais</option>
+        <option value="PA">Pará</option>
+        <option value="PB">Paraíba</option>
+        <option value="PR">Paraná</option>
+        <option value="PE">Pernambuco</option>
+        <option value="PI">Piauí</option>
+        <option value="RJ">Rio de Janeiro</option>
+        <option value="RN">Rio Grande do Norte</option>
+        <option value="RS">Rio Grande do Sul</option>
+        <option value="RO">Rondônia</option>
+        <option value="RR">Roraima</option>
+        <option value="SC">Santa Catarina</option>
+        <option value="SP">São Paulo</option>
+        <option value="SE">Sergipe</option>
+        <option value="TO">Tocantins</option>
+    </select><br><br>
+
+    <select id="buscarCidade">
+        <option value="">Selecione o Estado primeiro</option>
+    </select><br><br>
+
+    <button onclick="buscar()">Buscar</button>
+
+    <h2>Resultados:</h2>
+    <ul id="resultado"></ul>
+
+    <button onclick="exportarDados()" style="background-color: #27ae60;">Baixar Backup dos Dados</button>
+    
+
+    <script>
+        let dadosSalvos = localStorage.getItem("listaIrmaos");
+        let pessoas = dadosSalvos ? JSON.parse(dadosSalvos) : [];
+
+        // --- FUNÇÃO PARA FORMATAR TELEFONE (VERSÃO CORRIGIDA) ---
+        document.getElementById("telefone").addEventListener("input", function (e) {
+            let x = e.target.value.replace(/\D/g, ""); // Remove tudo que não é número
+
+            // Se o usuário começar a digitar, a gente ajuda com a máscara
+            // Formato final esperado: +55 (49) 99999-9999 (13 números no total)
+
+            if (x.length <= 2) {
+                e.target.value = x;
+            } else if (x.length <= 4) {
+                // Formata o DDD: (49)
+                e.target.value = `(${x.slice(0, 2)}) ${x.slice(2)}`;
+            } else if (x.length <= 9) {
+                // Formata a primeira parte: (49) 99999
+                e.target.value = `(${x.slice(0, 2)}) ${x.slice(2, 7)}-${x.slice(7)}`;
+            } else {
+                // Limita ao tamanho máximo de um celular com DDD
+                e.target.value = `(${x.slice(0, 2)}) ${x.slice(2, 7)}-${x.slice(7, 11)}`;
+            }
+
+            // Opcional: Se você quer que o +55 apareça apenas no BANCO DE DADOS 
+            // e não confunda o usuário na digitação, fazemos isso no cadastro.
+        });
+
+        // --- FUNÇÃO PARA CARREGAR CIDADES ---
+        function carregarCidades(idEstado, idCidade) {
+            let estadoSigla = document.getElementById(idEstado).value;
+            let selectCidade = document.getElementById(idCidade);
+            selectCidade.innerHTML = '<option value="">Carregando...</option>';
+
+            if (estadoSigla) {
+                fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${estadoSigla}/municipios`)
+                    .then(response => response.json())
+                    .then(dados => {
+                        selectCidade.innerHTML = '<option value="">Selecione a Cidade</option>';
+                        dados.forEach(m => selectCidade.innerHTML += `<option value="${m.nome}">${m.nome}</option>`);
+                    });
+            } else {
+                selectCidade.innerHTML = '<option value="">Selecione o Estado primeiro</option>';
+            }
+        }
+
+        document.getElementById("cadEstado").addEventListener("change", () => carregarCidades("cadEstado", "cidade"));
+        document.getElementById("buscarEstado").addEventListener("change", () => carregarCidades("buscarEstado", "buscarCidade"));
+
+        // --- CADASTRAR ---
+        function cadastrar() {
+            let nome = document.getElementById("nome").value;
+            let tel = document.getElementById("telefone").value;
+            let est = document.getElementById("cadEstado").value;
+            let cid = document.getElementById("cidade").value;
+
+            if (!nome || !est || !cid) { alert("Preencha os campos obrigatórios!"); return; }
+
+            let pessoa = {
+                nome: nome,
+                telefone: tel,
+                estado: est,
+                cidade: cid,
+                lider: document.getElementById("lider").checked
+            };
+
+            pessoas.push(pessoa);
+            salvar();
+            alert("Cadastrado!");
+
+            // Limpa campos
+            document.getElementById("nome").value = "";
+            document.getElementById("telefone").value = "";
+        }
+
+        // --- BUSCAR E EXCLUIR ---
+        function buscar() {
+            let estProc = document.getElementById("buscarEstado").value;
+            let cidProc = document.getElementById("buscarCidade").value;
+            let nomeProc = document.getElementById("buscarNome").value.toLowerCase(); // Pegamos o nome em minúsculo
+            let soLideres = document.getElementById("buscarApenasLideres").checked;
+
+            let resultado = document.getElementById("resultado");
+            resultado.innerHTML = "";
+
+            // O .filter agora vai checar 4 coisas ao mesmo tempo!
+            let filtrados = pessoas.filter(p => {
+                // 1. Checa o Estado (se selecionado)
+                let bateEstado = estProc === "" || p.estado === estProc;
+
+                // 2. Checa a Cidade (se selecionada)
+                let bateCidade = cidProc === "" || p.cidade === cidProc;
+
+                // 3. Checa o Nome (se digitado)
+                let bateNome = p.nome.toLowerCase().includes(nomeProc);
+
+                // 4. Checa se é Líder (se o filtro estiver ativo)
+                let bateLider = !soLideres || p.lider === true;
+
+                // Só retorna "true" se passar em todos os testes acima
+                return bateEstado && bateCidade && bateNome && bateLider;
+            });
+
+            // Exibe os resultados
+            filtrados.forEach((p, index) => {
+                let tipo = p.lider ? "⭐ Líder: " : "";
+                resultado.innerHTML += `
+            <li>
+                ${tipo}${p.nome} - ${p.telefone} (${p.cidade}/${p.estado})
+                <button onclick="excluir(${index})" style="color:red; margin-left:10px;">Apagar</button>
+            </li>`;
+            });
+
+            if (filtrados.length === 0) {
+                resultado.innerHTML = "<li>Nenhum irmão encontrado com esses filtros.</li>";
+            }
+        }
+
+        function excluir(posicao) {
+            if (confirm("Tem certeza que deseja apagar este cadastro?")) {
+                pessoas.splice(posicao, 1); // Remove 1 item naquela posição
+                salvar();
+                buscar(); // Atualiza a lista na tela
+            }
+        }
+
+        function salvar() {
+            localStorage.setItem("listaIrmaos", JSON.stringify(pessoas));
+        }
+
+       function exportarDados() {
+    if (pessoas.length === 0) {
+        alert("Não há dados para exportar!");
+        return;
+    }
+
+    // 1. Criamos o cabeçalho da planilha
+    let csvConteudo = "Nome;Telefone;Estado;Cidade;Lider\n";
+
+    // 2. Percorremos cada pessoa e criamos uma linha
+    pessoas.forEach(p => {
+        let eLider = p.lider ? "Sim" : "Não";
+        // Montamos a linha separada por ponto-e-vírgula (melhor para o Excel no Brasil)
+        let linha = `${p.nome};${p.telefone};${p.estado};${p.cidade};${eLider}\n`;
+        csvConteudo += linha;
+    });
+
+    // 3. Criamos o arquivo para download
+    // O '\ufeff' serve para o Excel entender que tem acentos (UTF-8)
+    const blob = new Blob(["\ufeff" + csvConteudo], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    
+    a.href = url;
+    a.download = "lista_irmaos_backup.csv";
+    a.click();
+
+    window.URL.revokeObjectURL(url);
+}
+    </script>
+</body>
+
+</html>
