@@ -663,7 +663,7 @@
             filtrados.forEach(p => {
                 // Limpa o telefone para o link funcionar (tira parênteses e traços)
                 const telLimpo = p.telefone.replace(/\D/g, '');
-                const msgWhats = encodeURIComponent(`Olá ${p.nome}, sou da comunidade Conectar Irmãos!`);
+                const msgWhats = encodeURIComponent(`Olá ${p.nome}, estou cadastrado no site Conectando Discípulos!`);
                 const linkWhats = `https://api.whatsapp.com/send?phone=55${telLimpo}&text=${msgWhats}`;
 
                 resDiv.innerHTML += `
