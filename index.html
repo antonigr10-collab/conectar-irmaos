@@ -358,6 +358,23 @@
             <h1>Conectando Discípulos</h1>
         </header>
 
+        <div class="card-boas-vindas"
+            style="background: #f0f7ff; border-left: 5px solid #007bff; padding: 20px; margin: 20px auto; border-radius: 8px; line-height: 1.6; color: #333; max-width: 800px; font-family: sans-serif;">
+            <h3 style="margin-top: 0; color: #0056b3; display: flex; align-items: center; gap: 10px;">
+                🤝 Por que este site existe?
+            </h3>
+            <p style="margin-bottom: 10px;">
+                Este site foi criado para que nenhum discípulo de Jesus fique isolado.
+                Queremos evitar que irmãos morem na mesma cidade por anos sem se conhecerem.
+                
+            </p>
+            <p style="margin-bottom: 0; font-weight: 600; color: #444;">
+                <strong>Como usar:</strong> Cadastre-se para ser encontrado ou use a busca para localizar
+                líderes e irmãos. Ao clicar no botão, você fala direto pelo WhatsApp!
+            </p>
+        </div>
+
+
         <div class="dashboard-grid">
             <div class="stat-card">
                 <span class="stat-value" id="totalIrmaos">0</span>
@@ -601,7 +618,7 @@
                 mostrarToast("Erro ao salvar: " + error.message);
             } else {
                 mostrarToast("Cadastrado com sucesso!");
-                
+
                 location.reload();
             }
         }
@@ -634,29 +651,39 @@
                     (!soLid || p.lider);
             });
 
+            // --- AQUI ENTRA A ORDEM ALFABÉTICA ---
+            filtrados.sort((a, b) => a.nome.localeCompare(b.nome));
+
             if (filtrados.length === 0) {
                 resDiv.innerHTML = '<p style="text-align:center;color:var(--secondary);">Nenhum resultado.</p>';
                 return;
             }
 
+            // --- AQUI ENTRA O BOTÃO DE WHATSAPP ---
             filtrados.forEach(p => {
-                // Essa linha prepara o link do WhatsApp automaticamente
-                const msgWhats = encodeURIComponent(`Olá ${p.nome}, sou um discípulo de Jesus!`);
-                const linkWhats = `https://wa.me/55${p.telefone.replace(/\D/g, '')}?text=${msgWhats}`;
+                // Limpa o telefone para o link funcionar (tira parênteses e traços)
+                const telLimpo = p.telefone.replace(/\D/g, '');
+                const msgWhats = encodeURIComponent(`Olá ${p.nome}, sou da comunidade Conectar Irmãos!`);
+                const linkWhats = `https://api.whatsapp.com/send?phone=55${telLimpo}&text=${msgWhats}`;
 
                 resDiv.innerHTML += `
-        <div class="person-item">
-            <div>
-                <div class="person-name">${p.nome} ${p.lider ? '<span class="badge-lider">Líder</span>' : ''}</div>
+        <div class="person-item" style="padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div style="flex: 1;">
+                <div class="person-name" style="font-weight: bold; font-size: 1.1em;">
+                    ${p.nome} ${p.lider ? '<span class="badge-lider" style="background:#ffd700; color:#000; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-left:5px;">Líder</span>' : ''}
+                </div>
+                <div class="person-location" style="font-size: 0.9em; color: #666; margin-top: 4px;">📍 ${p.cidade} - ${p.estado}</div>
                 
-                <a href="${linkWhats}" target="_blank" style="text-decoration:none; color:#25d366; font-weight:bold; display:block; margin:5px 0;">
-                   📱 ${p.telefone}
-                </a>
-                
-                <div class="person-location">📍 ${p.cidade} - ${p.estado}</div>
+                <button onclick="window.location.href='${linkWhats}'" 
+                        style="background: #25d366; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-top: 10px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                    📱 Chamar no WhatsApp
+                </button>
             </div>
-            <button style="background:none; border:none; color:var(--danger); cursor:pointer;" onclick="excluir(${p.id})">
-                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:20px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            
+            <button style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left: 10px;" onclick="excluir(${p.id})">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:20px; height:20px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
             </button>
         </div>`;
             });
