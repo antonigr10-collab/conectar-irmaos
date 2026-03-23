@@ -460,10 +460,25 @@
                 <span class="toggle-switch"></span>
                 <span class="toggle-label" style="font-weight:600; font-size:14px;">Definir como líder regional ⭐</span>
             </label>
+            <div
+                style="margin: 15px 0; display: flex; align-items: flex-start; gap: 10px; font-size: 0.85em; color: #555;">
+                <input type="checkbox" id="concordoLGPD" style="margin-top: 3px;">
+                <label for="concordoLGPD">
+                    Autorizo a exibição do meu nome e WhatsApp para outros irmãos cadastrados, conforme a LGPD.
+                </label>
+            </div>
 
             <button class="btn btn-primary" onclick="cadastrar()">
                 Salvar Cadastro
             </button>
+        </div>
+
+        <div style="margin: 15px 0; font-size: 0.85em; color: #555;">
+            <input type="checkbox" id="concordoLGPD">
+            <label for="concordoLGPD">
+                Estou ciente e concordo que meus dados sejam visualizados por outros irmãos
+                cadastrados para fins de comunhão e contato via WhatsApp.
+            </label>
         </div>
 
         <div class="panel">
@@ -606,20 +621,53 @@
         document.getElementById("cadEstado").addEventListener("change", () => carregarCidades("cadEstado", "cidade"));
         document.getElementById("buscarEstado").addEventListener("change", () => carregarCidades("buscarEstado", "buscarCidade"));
 
-        // --- FUNÇÕES DO BANCO DE DADOS (C.R.U.D) ---
-
         async function cadastrar() {
+            // 1. CAPTURA DOS DADOS
             let nome = document.getElementById("nome").value.trim();
             let tel = document.getElementById("telefone").value.trim();
             let est = document.getElementById("cadEstado").value;
             let cid = document.getElementById("cidade").value;
             let eLider = document.getElementById("lider").checked;
-            let vinc = document.getElementById("vinculoPonta").value.trim(); // Pega o vínculo
+            let vinc = document.getElementById("vinculoPonta").value.trim();
+            let aceitou = document.getElementById("concordoLGPD").checked;
 
-            if (!nome || !tel || !est || !cid) return mostrarToast("Preencha tudo!");
+            // 2. VALIDAÇÃO DE CAMPOS VAZIOS (TODOS OBRIGATÓRIOS)
+            if (!nome || !tel || !est || !cid || !vinc) {
+                return mostrarToast("⚠️ Preencha todos os campos, incluindo o Vínculo!");
+            }
 
-            // Salva no Supabase
-            const { error } = await _supabase
+            // 3. VALIDAÇÃO DA LGPD
+            if (!aceitou) {
+                return mostrarToast("⚠️ Você precisa aceitar os termos da LGPD para continuar.");
+            }
+
+            // 4. LÓGICA DE SEGURANÇA DE NOMES
+            let partesDoNome = nome.split(/\s+/);
+            if (partesDoNome.length > 2) {
+                return mostrarToast("Por segurança, use apenas Nome e Sobrenome.");
+            }
+            if (partesDoNome.length < 2) {
+                return mostrarToast("Por favor, digite seu nome e pelo menos um sobrenome.");
+            }
+
+            // 5. VERIFICAÇÃO DE TELEFONE DUPLICADO
+            // Fazemos uma busca rápida no Supabase para ver se esse número já existe
+            const { data: existente, error: erroBusca } = await _supabase
+                .from('irmaos')
+                .select('telefone')
+                .eq('telefone', tel)
+                .maybeSingle(); // Retorna o registro se achar, ou null se não achar
+
+            if (erroBusca) {
+                return mostrarToast("Erro ao validar dados: " + erroBusca.message);
+            }
+
+            if (existente) {
+                return mostrarToast("🚫 Este número de telefone já está cadastrado!");
+            }
+
+            // 6. SALVAMENTO NO SUPABASE (SÓ CHEGA AQUI SE TUDO ESTIVER OK)
+            const { error: erroInsert } = await _supabase
                 .from('irmaos')
                 .insert([{
                     nome,
@@ -627,14 +675,13 @@
                     estado: est,
                     cidade: cid,
                     lider: eLider,
-                    vinculo_ponta: vinc // Salva o novo campo
+                    vinculo_ponta: vinc
                 }]);
 
-            if (error) {
-                mostrarToast("Erro ao salvar: " + error.message);
+            if (erroInsert) {
+                mostrarToast("Erro ao salvar: " + erroInsert.message);
             } else {
-                mostrarToast("Cadastrado com sucesso!");
-                // Pequeno atraso antes de recarregar para dar tempo do usuário ler o Toast
+                mostrarToast("✅ Cadastrado com sucesso!");
                 setTimeout(() => {
                     location.reload();
                 }, 1500);
@@ -677,11 +724,10 @@
                 return;
             }
 
-            // --- AQUI ENTRA O BOTÃO DE WHATSAPP ---
+            // --- EXIBIÇÃO DOS RESULTADOS ---
             filtrados.forEach(p => {
-                // Limpa o telefone para o link funcionar (tira parênteses e traços)
                 const telLimpo = p.telefone.replace(/\D/g, '');
-                const msgWhats = encodeURIComponent(`Olá ${p.nome}, estou cadastrado no site Conectando Discípulos!`);
+                const msgWhats = encodeURIComponent(`Olá ${p.nome}, sou da comunidade Conectar Irmãos!`);
                 const linkWhats = `https://api.whatsapp.com/send?phone=55${telLimpo}&text=${msgWhats}`;
 
                 resDiv.innerHTML += `
@@ -690,7 +736,12 @@
                 <div class="person-name" style="font-weight: bold; font-size: 1.1em;">
                     ${p.nome} ${p.lider ? '<span class="badge-lider" style="background:#ffd700; color:#000; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-left:5px;">Líder</span>' : ''}
                 </div>
+                
                 <div class="person-location" style="font-size: 0.9em; color: #666; margin-top: 4px;">📍 ${p.cidade} - ${p.estado}</div>
+                
+                <div style="font-size: 0.85em; color: #555; margin-top: 6px; font-style: italic;">
+                    🔗 Vínculo na Ponta: <strong>${p.vinculo_ponta || 'Não informado'}</strong>
+                </div>
                 
                 <button onclick="window.location.href='${linkWhats}'" 
                         style="background: #25d366; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-top: 10px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
@@ -705,7 +756,7 @@
             </button>
         </div>`;
             });
-        }
+        } // Fim da função buscar
 
         function atualizarDashboard() {
             document.getElementById("totalIrmaos").innerText = pessoas.length;
