@@ -366,7 +366,7 @@
             <p style="margin-bottom: 10px;">
                 Este site foi criado para que nenhum discípulo de Jesus fique isolado.
                 Queremos evitar que irmãos morem na mesma cidade por anos sem se conhecerem.
-                
+
             </p>
             <p style="margin-bottom: 0; font-weight: 600; color: #444;">
                 <strong>Como usar:</strong> Cadastre-se para ser encontrado ou use a busca para localizar
@@ -445,6 +445,14 @@
                         <option value="">Aguardando...</option>
                     </select>
                 </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label for="vinculoPonta" style="display: block; font-weight: bold; margin-bottom: 5px;">
+                    Vínculo na Ponta (Líder de Referência):
+                </label>
+                <input type="text" id="vinculoPonta" placeholder="Ex: Rubinho, Mario..."
+                    style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px;">
             </div>
 
             <label class="toggle-group">
@@ -606,20 +614,30 @@
             let est = document.getElementById("cadEstado").value;
             let cid = document.getElementById("cidade").value;
             let eLider = document.getElementById("lider").checked;
+            let vinc = document.getElementById("vinculoPonta").value.trim(); // Pega o vínculo
 
             if (!nome || !tel || !est || !cid) return mostrarToast("Preencha tudo!");
 
             // Salva no Supabase
             const { error } = await _supabase
                 .from('irmaos')
-                .insert([{ nome, telefone: tel, estado: est, cidade: cid, lider: eLider }]);
+                .insert([{
+                    nome,
+                    telefone: tel,
+                    estado: est,
+                    cidade: cid,
+                    lider: eLider,
+                    vinculo_ponta: vinc // Salva o novo campo
+                }]);
 
             if (error) {
                 mostrarToast("Erro ao salvar: " + error.message);
             } else {
                 mostrarToast("Cadastrado com sucesso!");
-
-                location.reload();
+                // Pequeno atraso antes de recarregar para dar tempo do usuário ler o Toast
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
             }
         }
 
