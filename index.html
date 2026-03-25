@@ -347,7 +347,15 @@
             transform: translateX(100%);
             transition: all 0.5s ease;
         }
+
+        /* Quando o campo tiver a classe "erro", a borda fica vermelha e grossa */
+        .campo-erro {
+            border: 2px solid #dc2626 !important;
+            background-color: #fff1f1;
+            /* Um fundo levemente rosado */
+        }
     </style>
+    <script src="https://unpkg.com/vanilla-masker@1.2.0/build/vanilla-masker.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -473,6 +481,10 @@
             </button>
         </div>
 
+        <div style="display:none;">
+            <input type="text" id="validacao_seguranca" value="">
+        </div>
+
         <div class="panel">
             <h2>
                 <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -560,16 +572,36 @@
         </footer>
     </div>
 
+
+
     <script>
-        // 1. Configuração de conexão (COLE SUAS CHAVES AQUI)
+        // --- CONFIGURAÇÃO ---
         const SUPABASE_URL = 'https://onrvnaqzudykimjsvnqy.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_Ql8bhWzKV6dDkOLMpPTTlQ_jfKznQq7';
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let pessoas = [];
 
-        // --- INICIALIZAÇÃO ---
-        // Esta função busca os dados no Supabase assim que a página abre
+        // --- FUNÇÃO AUXILIAR: TOAST ---
+        function mostrarToast(mensagem, tipo = "sucesso") {
+            let container = document.querySelector(".toast-container");
+            if (!container) {
+                container = document.createElement("div");
+                container.className = "toast-container";
+                document.body.appendChild(container);
+            }
+            const toast = document.createElement("div");
+            toast.className = `toast ${tipo}`;
+            toast.innerText = mensagem;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add("saindo");
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        // --- INICIALIZAÇÃO E DASHBOARD ---
         async function carregarDadosDoBanco() {
             const { data, error } = await _supabase
                 .from('irmaos')
@@ -579,209 +611,216 @@
             if (error) {
                 console.error("Erro ao buscar dados:", error);
             } else {
-                pessoas = data;
+                pessoas = data || [];
                 atualizarDashboard();
-                buscar(); // Mostra a lista inicial
+                buscar();
             }
         }
 
-        // Chamar ao carregar a página
+        function atualizarDashboard() {
+            const elTotal = document.getElementById("totalIrmaos");
+            const elLideres = document.getElementById("totalLideres");
+            if (elTotal) elTotal.innerText = pessoas.length;
+            if (elLideres) elLideres.innerText = pessoas.filter(p => p.lider === true).length;
+        }
+
         carregarDadosDoBanco();
 
-        // --- MÁSCARAS E INTERFACE ---
-        document.getElementById("telefone").addEventListener("input", function (e) {
-            let x = e.target.value.replace(/\D/g, "");
-            if (x.length <= 2) e.target.value = x;
-            else if (x.length <= 6) e.target.value = `(${x.slice(0, 2)}) ${x.slice(2)}`;
-            else e.target.value = `(${x.slice(0, 2)}) ${x.slice(2, 7)}-${x.slice(7, 11)}`;
-        });
+        // --- MÁSCARA DE TELEFONE ---
+        // Só roda quando a página terminar de carregar totalmente
+        window.onload = function () {
+            const campoTelefone = document.getElementById("telefone");
+            if (campoTelefone) {
+                VMasker(campoTelefone).maskPattern("(99) 99999-9999");
+            }
+        };
 
         function carregarCidades(idEstado, idCidade) {
             let sigla = document.getElementById(idEstado).value;
             let select = document.getElementById(idCidade);
-            select.innerHTML = '<option value="">...</option>';
-            if (sigla) {
-                fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${sigla}/municipios`)
-                    .then(r => r.json())
-                    .then(dados => {
-                        select.innerHTML = '<option value="">Selecione...</option>';
-                        dados.forEach(m => select.innerHTML += `<option value="${m.nome}">${m.nome}</option>`);
-                    });
+
+            // Se não tiver estado selecionado, volta para o padrão
+            if (!sigla) {
+                select.innerHTML = '<option value="">Aguardando...</option>';
+                return;
             }
+
+            // Enquanto busca no IBGE, mostra que está carregando
+            select.innerHTML = '<option value="">Carregando...</option>';
+
+            fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${sigla}/municipios`)
+                .then(r => r.json())
+                .then(dados => {
+                    select.innerHTML = '<option value="">Selecione a cidade</option>';
+                    // Adiciona cada cidade na lista
+                    dados.forEach(m => {
+                        select.innerHTML += `<option value="${m.nome}">${m.nome}</option>`;
+                    });
+                })
+                .catch(err => {
+                    console.error("Erro:", err);
+                    select.innerHTML = '<option value="">Erro ao carregar</option>';
+                });
         }
 
         document.getElementById("cadEstado").addEventListener("change", () => carregarCidades("cadEstado", "cidade"));
         document.getElementById("buscarEstado").addEventListener("change", () => carregarCidades("buscarEstado", "buscarCidade"));
 
+        // --- CADASTRO DE NOVOS IRMÃOS (CORRIGIDO) ---
         async function cadastrar() {
-            // 1. CAPTURA DOS DADOS
-            let nome = document.getElementById("nome").value.trim();
-            let tel = document.getElementById("telefone").value.trim();
-            let est = document.getElementById("cadEstado").value;
-            let cid = document.getElementById("cidade").value;
-            let eLider = document.getElementById("lider").checked;
-            let vinc = document.getElementById("vinculoPonta").value.trim();
-            let aceitou = document.getElementById("concordoLGPD").checked;
+            // 1. Verificação de SPAM (Honeypot)
+            const checkBot = document.getElementById("validacao_seguranca").value;
+            if (checkBot !== "") return;
 
-            // 2. VALIDAÇÃO DE CAMPOS VAZIOS (TODOS OBRIGATÓRIOS)
-            if (!nome || !tel || !est || !cid || !vinc) {
-                return mostrarToast("⚠️ Preencha todos os campos, incluindo o Vínculo!");
-            }
+            const btnSalvar = document.querySelector("button[onclick='cadastrar()']");
 
-            // 3. VALIDAÇÃO DA LGPD
-            if (!aceitou) {
-                return mostrarToast("⚠️ Você precisa aceitar os termos da LGPD para continuar.");
-            }
+            try {
+                // 2. Bloqueia o botão para evitar cliques duplos
+                if (btnSalvar) {
+                    btnSalvar.disabled = true;
+                    btnSalvar.innerText = "Salvando...";
+                }
 
-            // 4. LÓGICA DE SEGURANÇA DE NOMES
-            let partesDoNome = nome.split(/\s+/);
-            if (partesDoNome.length > 2) {
-                return mostrarToast("Por segurança, use apenas Nome e Sobrenome.");
-            }
-            if (partesDoNome.length < 2) {
-                return mostrarToast("Por favor, digite seu nome e pelo menos um sobrenome.");
-            }
+                // 3. Validação de campos obrigatórios
+                const camposParaValidar = [
+                    { id: "nome", obrigatorio: true },
+                    { id: "telefone", obrigatorio: true },
+                    { id: "cadEstado", obrigatorio: true },
+                    { id: "cidade", obrigatorio: true },
+                    { id: "vinculoPonta", obrigatorio: true }
+                ];
 
-            // 5. VERIFICAÇÃO DE TELEFONE DUPLICADO
-            // Fazemos uma busca rápida no Supabase para ver se esse número já existe
-            const { data: existente, error: erroBusca } = await _supabase
-                .from('irmaos')
-                .select('telefone')
-                .eq('telefone', tel)
-                .maybeSingle(); // Retorna o registro se achar, ou null se não achar
+                let temErro = false;
+                camposParaValidar.forEach(item => {
+                    const campo = document.getElementById(item.id);
+                    const valor = campo.value.trim();
+                    if (item.obrigatorio && !valor) {
+                        campo.classList.add("campo-erro");
+                        temErro = true;
+                        campo.oninput = () => campo.classList.remove("campo-erro");
+                    }
+                });
 
-            if (erroBusca) {
-                return mostrarToast("Erro ao validar dados: " + erroBusca.message);
-            }
+                let aceitou = document.getElementById("concordoLGPD").checked;
 
-            if (existente) {
-                return mostrarToast("🚫 Este número de telefone já está cadastrado!");
-            }
+                if (temErro || !aceitou) {
+                    if (!aceitou) mostrarToast("⚠️ Aceite os termos da LGPD.", "erro");
+                    else mostrarToast("⚠️ Preencha os campos destacados!", "erro");
 
-            // 6. SALVAMENTO NO SUPABASE (SÓ CHEGA AQUI SE TUDO ESTIVER OK)
-            const { error: erroInsert } = await _supabase
-                .from('irmaos')
-                .insert([{
-                    nome,
-                    telefone: tel,
+                    if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.innerText = "Salvar Cadastro"; }
+                    return;
+                }
+
+                // 4. Captura e formatação de valores
+                let nomeOriginal = document.getElementById("nome").value.trim();
+                let telOriginal = document.getElementById("telefone").value.trim();
+                let est = document.getElementById("cadEstado").value;
+                let cid = document.getElementById("cidade").value;
+                let eLider = document.getElementById("lider").checked;
+                let vinc = document.getElementById("vinculoPonta").value.trim();
+
+                const nomeFinal = nomeOriginal.toLowerCase().split(' ')
+                    .map(palavra => palavra.charAt(0).toUpperCase() + palavra.slice(1))
+                    .join(' ');
+
+                const telFinal = telOriginal.replace(/\D/g, '');
+
+                if (nomeFinal.split(' ').length < 2) {
+                    document.getElementById("nome").classList.add("campo-erro");
+                    if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.innerText = "Salvar Cadastro"; }
+                    return mostrarToast("Por segurança, use Nome e Sobrenome.", "erro");
+                }
+
+                // 5. Verifica duplicidade no banco
+                const { data: existente } = await _supabase.from('irmaos').select('telefone').eq('telefone', telFinal).maybeSingle();
+
+                if (existente) {
+                    if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.innerText = "Salvar Cadastro"; }
+                    return mostrarToast("🚫 Este telefone já está cadastrado!", "erro");
+                }
+
+                // 6. Inserção no Banco
+                const { error: erroInsert } = await _supabase.from('irmaos').insert([{
+                    nome: nomeFinal,
+                    telefone: telFinal,
                     estado: est,
                     cidade: cid,
                     lider: eLider,
                     vinculo_ponta: vinc
                 }]);
 
-            if (erroInsert) {
-                mostrarToast("Erro ao salvar: " + erroInsert.message);
-            } else {
-                mostrarToast("✅ Cadastrado com sucesso!");
-                setTimeout(() => {
-                    location.reload();
-                }, 1500);
+                if (erroInsert) {
+                    throw erroInsert;
+                } else {
+                    mostrarToast("✅ Cadastrado com sucesso!");
+                    setTimeout(() => location.reload(), 1500);
+                }
+
+            } catch (e) {
+                if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.innerText = "Salvar Cadastro"; }
+                console.error(e);
+                mostrarToast("Erro inesperado: " + (e.message || "Erro no sistema"), "erro");
             }
         }
 
-        async function excluir(idNoBanco) {
-            if (confirm("Remover permanentemente do banco de dados?")) {
-                const { error } = await _supabase
-                    .from('irmaos')
-                    .delete()
-                    .eq('id', idNoBanco);
-
-                if (error) mostrarToast("Erro ao excluir");
-                else location.reload();
-            }
-        }
-
-        function buscar() {
+        // --- BUSCA E FILTROS ---
+        async function buscar() {
             let nomeP = document.getElementById("buscarNome").value.toLowerCase();
             let estP = document.getElementById("buscarEstado").value;
             let cidP = document.getElementById("buscarCidade").value;
             let soLid = document.getElementById("buscarApenasLideres").checked;
 
             let resDiv = document.getElementById("resultado");
-            resDiv.innerHTML = "";
+            if (!resDiv) return;
+            resDiv.innerHTML = "<p style='text-align:center;'>Buscando...</p>";
 
-            let filtrados = pessoas.filter(p => {
-                return (estP === "" || p.estado === estP) &&
-                    (cidP === "" || p.cidade === cidP) &&
-                    (p.nome.toLowerCase().includes(nomeP)) &&
-                    (!soLid || p.lider);
-            });
+            let query = _supabase.from('irmaos').select('*');
+            if (estP) query = query.eq('estado', estP);
+            if (cidP) query = query.eq('cidade', cidP);
+            if (soLid) query = query.eq('lider', true);
+            if (nomeP) query = query.ilike('nome', `%${nomeP}%`);
 
-            // --- AQUI ENTRA A ORDEM ALFABÉTICA ---
-            filtrados.sort((a, b) => a.nome.localeCompare(b.nome));
+            const { data, error } = await query.order('nome', { ascending: true });
 
-            if (filtrados.length === 0) {
-                resDiv.innerHTML = '<p style="text-align:center;color:var(--secondary);">Nenhum resultado.</p>';
+            if (error) {
+                resDiv.innerHTML = "<p>Erro ao buscar: " + error.message + "</p>";
                 return;
             }
 
-            // --- EXIBIÇÃO DOS RESULTADOS ---
-            filtrados.forEach(p => {
-                const telLimpo = p.telefone.replace(/\D/g, '');
-                const msgWhats = encodeURIComponent(`Olá ${p.nome}, sou da comunidade Conectar Irmãos!`);
-                const linkWhats = `https://api.whatsapp.com/send?phone=55${telLimpo}&text=${msgWhats}`;
-
-                resDiv.innerHTML += `
-        <div class="person-item" style="padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-            <div style="flex: 1;">
-                <div class="person-name" style="font-weight: bold; font-size: 1.1em;">
-                    ${p.nome} ${p.lider ? '<span class="badge-lider" style="background:#ffd700; color:#000; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-left:5px;">Líder</span>' : ''}
-                </div>
-                
-                <div class="person-location" style="font-size: 0.9em; color: #666; margin-top: 4px;">📍 ${p.cidade} - ${p.estado}</div>
-                
-                <div style="font-size: 0.85em; color: #555; margin-top: 6px; font-style: italic;">
-                    🔗 Vínculo na Ponta: <strong>${p.vinculo_ponta || 'Não informado'}</strong>
-                </div>
-                
-                <button onclick="window.location.href='${linkWhats}'" 
-                        style="background: #25d366; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-top: 10px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                    📱 Chamar no WhatsApp
-                </button>
-            </div>
-            
-            <button style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left: 10px;" onclick="excluir(${p.id})">
-                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:20px; height:20px;">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                </svg>
-            </button>
-        </div>`;
-            });
-        } // Fim da função buscar
-
-        function atualizarDashboard() {
-            document.getElementById("totalIrmaos").innerText = pessoas.length;
-            let lideres = pessoas.filter(p => p.lider).length;
-            document.getElementById("totalLideres").innerText = lideres;
-        }
-
-
-        function mostrarToast(mensagem, tipo = 'sucesso') {
-            // Cria o container se não existir
-            let container = document.querySelector('.toast-container');
-            if (!container) {
-                container = document.createElement('div');
-                container.className = 'toast-container';
-                document.body.appendChild(container);
+            resDiv.innerHTML = "";
+            if (data.length === 0) {
+                resDiv.innerHTML = '<p style="text-align:center;color:#666;">Nenhum resultado encontrado.</p>';
+                return;
             }
 
-            // Cria o toast
-            const toast = document.createElement('div');
-            toast.className = `toast ${tipo}`;
-            toast.innerHTML = `<span>${tipo === 'sucesso' ? '✅' : '❌'}</span> ${mensagem}`;
+            data.forEach(irmao => {
+                const vinculoExibir = irmao.vinculo_ponta ? irmao.vinculo_ponta : "Não informado";
+                const telLimpo = irmao.telefone.replace(/\D/g, '');
+                const msgWhats = encodeURIComponent(`Olá ${irmao.nome}, sou da comunidade Conectar Irmãos!`);
+                const msgSuporte = encodeURIComponent(`Olá, notei um erro no meu cadastro.`);
 
-            container.appendChild(toast);
-
-            // Remove automaticamente depois de 3 segundos
-            setTimeout(() => {
-                toast.classList.add('saindo');
-                setTimeout(() => toast.remove(), 500);
-            }, 3000);
+                resDiv.innerHTML += `
+                <div class="person-item" style="background: white; padding: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 16px; border-left: 5px solid ${irmao.lider ? '#ffd700' : '#0056b3'};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <strong style="font-size: 1.1em;">${irmao.nome}</strong>
+                        ${irmao.lider ? '<span style="background:#ffd700; padding:2px 8px; border-radius:4px; font-size:0.7em; font-weight:bold;">LÍDER ⭐</span>' : ''}
+                    </div>
+                    <div style="color: #666; font-size: 0.9em; margin-bottom: 4px;">📍 ${irmao.cidade} - ${irmao.estado}</div>
+                    <div style="color: #555; font-size: 0.85em; display: flex; align-items: center; gap: 5px; margin-bottom: 12px;">
+                        <span>🔗 Vínculo na Ponta: <strong>${vinculoExibir}</strong></span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <a href="https://wa.me/55${telLimpo}?text=${msgWhats}" target="_blank" style="flex-grow: 1; background: #25d366; color: white; text-decoration: none; text-align: center; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 0.9em;">WhatsApp</a>
+                        <a href="https://wa.me/5549999931421?text=${msgSuporte}" target="_blank" style="background: #fee2e2; padding: 10px; border-radius: 8px; color: #dc2626; text-decoration: none; display: flex; align-items: center;">⚠️</a>
+                    </div>
+                </div>`;
+            });
         }
-
     </script>
 
+</body>
+
+</html>
 </body>
 
 </html>
